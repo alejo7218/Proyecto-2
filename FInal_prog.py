@@ -17,6 +17,7 @@ def medir_tiempo(func):
         inicio = time.time()
         resultado = func(*args, **kwargs)
         duracion = time.time() - inicio
+        #se calcula cuanto tiempo paso desde que se empezo hasta que termino la ejecucion de func
         print(f"Tiempo de ejecución de '{func.__name__}': {duracion:.2f} segundos\n")
         return resultado
     return wrapper
@@ -27,6 +28,7 @@ def registrar_llamada(func):
     Decorador que indica cuándo se ejecuta una función.
     """
     def wrapper(*args, **kwargs):
+        #Función interna que envolverá a func, recibiendo cualquier tipo de argumento.
         print(f"Ejecutando función: {func.__name__}")
         return func(*args, **kwargs)
     return wrapper
@@ -34,6 +36,7 @@ def registrar_llamada(func):
 
 
 @registrar_llamada
+#Esta función está decorada con @registrar_llamada, así que cada vez que se llame, se imprimirá su ejecución.
 def cargar_csv_por_bloques(ruta, columnas=None, chunksize=100_000):
     """
     Carga un archivo CSV en bloques (chunks) para evitar saturar la memoria.
@@ -47,7 +50,8 @@ def cargar_csv_por_bloques(ruta, columnas=None, chunksize=100_000):
         iterator de bloques de DataFrames.
     """
     return pd.read_csv(ruta, usecols=columnas, chunksize=chunksize, low_memory=False)
-
+#Usa pandas.read_csv() para cargar el archivo ruta dividiéndolo en bloques de chunksize filas, usecols=columnas permite cargar solo ciertas columnas.
+    #low_memory=False desactiva la lectura parcial de datos para mayor precisión en tipos de datos.
 
 @registrar_llamada
 @medir_tiempo
@@ -66,7 +70,7 @@ def limpiar_y_concatenar(chunks):
         [chunk.drop_duplicates().dropna() for chunk in chunks],
         ignore_index=True
     )
-
+#Se concatenan todos los bloques limpios en un único DataFrame con pd.concat. ignore_index=True asegura que los índices sean consecutivos
 
 @registrar_llamada
 def estadisticas_descriptivas(df):
