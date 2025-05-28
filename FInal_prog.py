@@ -154,21 +154,109 @@ def graficar_relaciones(df, carpeta):
 @medir_tiempo
 def resolver_edo():
     """
-    Resuelve y grafica la EDO dy/dt = -0.5y con y(0)=5.
-    Guarda la solución como imagen.
+    Resuelve la EDO de Kepler para la anomalía excéntrica usando datos reales del CSV.
+    Selecciona aleatoriamente un asteroide con parámetros válidos.
+    Requiere columnas 'e' (excentricidad), 'a' (semieje mayor), y 'ma' (anomalía media en grados).
     """
-    def modelo(y, t): return -0.5 * y  # Modelo de decaimiento
-    t = np.linspace(0, 10, 100)
-    y = odeint(modelo, y0=5, t=t)
-
-    plt.plot(t, y)
-    plt.title("Solución de EDO: dy/dt = -0.5y")
-    plt.xlabel("Tiempo")
-    plt.ylabel("y(t)")
-    plt.grid()
-    plt.savefig("solucion_edo.png")
+    global df_limpio  # Accedemos al DataFrame ya cargado y limpiado
+    
+    # Verificar que tenemos las columnas necesarias
+    if not all(col in df_limpio.columns for col in ['e', 'a', 'ma']):
+        print("\n¡Advertencia! Columnas orbitales no encontradas. Usando valores por defecto.")
+        e = 0.1
+        a = 2.5
+        ma = 45.0  # Grados
+        nombre = "Asteroide Ejemplo"
+    else:
+        # Filtrar asteroides con parámetros válidos
+        asteroides_validos = df_limpio[
+            (df_limpio['e'] > 0) & (df_limpio['e'] < 1) & 
+            (df_limpio['a'] > 0) & 
+            (df_limpio['ma'].notna())
+        ].copy()
+        
+        if len(asteroides_validos) == 0:
+            print("\n¡No hay asteroides con parámetros válidos! Usando valores por defecto.")
+            e = 0.1
+            a = 2.5
+            ma = 45.0
+            nombre = "Asteroide Ejemplo"
+        else:
+            # Seleccionar aleatoriamente un asteroide válido
+            asteroide_aleatorio = asteroides_validos.sample(n=1).iloc[0]
+            e = asteroide_aleatorio['e']
+            a = asteroide_aleatorio['a']
+            ma = asteroide_aleatorio['ma']
+            nombre = asteroide_aleatorio.get('full_name', asteroide_aleatorio.get('name', f"Asteroide {asteroide_aleatorio.name}"))
+    
+    # Constantes y conversiones
+    G = 2.9591220838e-4  # Constante gravitacional [UA^3/día^2]
+    M0 = np.radians(ma)  # Convertir a radianes
+    
+    # Cálculos orbitales
+    n = np.sqrt(G / (a**3))  # Movimiento medio [rad/día]
+    P = 2 * np.pi / n        # Periodo orbital [días]
+    
+    # Definición de la EDO
+    def edo_kepler(E, t, e, n):
+        return n / (1 - e * np.cos(E))
+    
+    # Configuración temporal
+    t = np.linspace(0, P, 1000)  # 1 periodo completo
+    
+    # Condición inicial (aproximación de primer orden)
+    E0 = M0 + e * np.sin(M0)
+    
+    # Resolver la EDO
+    E = odeint(edo_kepler, E0, t, args=(e, n))
+    
+    # Calcular anomalía verdadera
+    theta = 2 * np.arctan2(
+        np.sqrt(1 + e) * np.sin(E/2), 
+        np.sqrt(1 - e) * np.cos(E/2)
+    )
+    
+    # Gráficos (mejorados)
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f"Análisis Orbital para: {nombre}", fontsize=14, y=1.02)
+    
+    # 1. Evolución temporal de E
+    axs[0, 0].plot(t, np.degrees(E), 'b')
+    axs[0, 0].set_title(f'Evolución de la Anomalía Excéntrica\n(e={e:.5f}, a={a:.5f} UA)')
+    axs[0, 0].set_xlabel('Tiempo [días]')
+    axs[0, 0].set_ylabel('E [grados]')
+    axs[0, 0].grid()
+    
+    # 2. Evolución temporal de θ
+    axs[0, 1].plot(t, np.degrees(theta), 'r')
+    axs[0, 1].set_title('Evolución de la Anomalía Verdadera')
+    axs[0, 1].set_xlabel('Tiempo [días]')
+    axs[0, 1].set_ylabel('θ [grados]')
+    axs[0, 1].grid()
+    
+    # 3. Relación E vs θ
+    axs[1, 0].plot(np.degrees(E), np.degrees(theta), 'g')
+    axs[1, 0].set_title('Relación entre Anomalías')
+    axs[1, 0].set_xlabel('E [grados]')
+    axs[1, 0].set_ylabel('θ [grados]')
+    axs[1, 0].grid()
+    
+    # 4. Trayectoria orbital (coordenadas polares)
+    axs[1, 1] = plt.subplot(224, projection='polar')
+    axs[1, 1].plot(theta.flatten(), a * (1 - e * np.cos(E.flatten())), 'm')
+    axs[1, 1].set_title('Diagrama Polar de la Órbita', pad=20)
+    axs[1, 1].grid(True)
+    
+    plt.tight_layout()
+    plt.savefig("solucion_kepler_aleatoria.png", bbox_inches='tight')
     plt.close()
-
+    
+    print(f"\nEDO resuelta para asteroide seleccionado aleatoriamente:")
+    print(f"- Nombre: {nombre}")
+    print(f"- Excentricidad (e): {e:.6f}")
+    print(f"- Semieje mayor (a): {a:.6f} UA")
+    print(f"- Anomalía media inicial (M): {ma:.2f}°")
+    print(f"- Periodo orbital estimado: {P:.2f} días ({P/365.25:.2f} años)")
 
 def main(ruta_csv, columnas_usuario=None):
     """
